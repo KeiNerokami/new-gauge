@@ -1,0 +1,4 @@
+discord.py @ git+https://github.com/Rapptz/discord.py
+
+python-dotenv>=1.0.0
+aiosqlite>=0.20.0
