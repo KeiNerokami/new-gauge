@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB = Path("data/replacer.db")
+DB = Path("cogs/databases/replacer.db")
 
 
 class ReplaceDB:

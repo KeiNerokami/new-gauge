@@ -210,198 +210,54 @@ class Replacer(commands.Cog):
         )
 
 
-    
     @commands.Cog.listener()
     async def on_message(self, message):
 
-        from datetime import datetime
+        if message.author.bot or message.webhook_id or not message.guild:
+            return
 
-        def log(level, text):
+        if not db.enabled(message.guild.id):
+            return
 
-            now = datetime.now().strftime("%H:%M;%S-%d-%m-%y")
+        channels = db.get_channels(message.guild.id)
 
-            print(
-                f"[backendbot] {now} || [replacer] {level} {text}",
-                flush=True
-            )
+        if channels and str(message.channel.id) not in channels:
+            return
+
+        replacements = db.get_replacements(message.guild.id)
+
+        if not replacements:
+            return
+
+        role_id = db.get_bypass_role(message.guild.id)
+
+        if role_id:
+            role = message.guild.get_role(int(role_id))
+            if role and message.author.top_role >= role:
+                return
+
+        modified = apply_replacements(message.content, replacements)
+
+        if modified == message.content:
+            return
 
         try:
+            webhook, _ = await get_or_create_webhook(message.channel)
+        except MissingWebhookPermissions:
+            return await self.permission_fail(message)
 
-            log(
-                "INFO",
-                f"recv guild={getattr(message.guild,'id',None)} "
-                f"user={message.author} "
-                f"content={repr(message.content)}"
-            )
+        name = getattr(message.author, "display_name", message.author.name)
+        avatar = message.author.display_avatar.url
 
-            if message.author.bot:
-                log("SKIP", "author is bot")
-                return
+        try:
+            await message.delete()
+        except Exception:
+            return
 
-            if message.webhook_id:
-                log("SKIP", "message came from webhook")
-                return
-
-            if not message.guild:
-                log("SKIP", "no guild")
-                return
-
-            if not db.enabled(message.guild.id):
-                log("SKIP", "system disabled")
-                return
-
-            channels = db.get_channels(message.guild.id)
-
-            log(
-                "INFO",
-                f"channels={channels}"
-            )
-
-            if channels and str(message.channel.id) not in channels:
-                log(
-                    "SKIP",
-                    f"channel {message.channel.id} not watched"
-                )
-                return
-
-            replacements = db.get_replacements(message.guild.id)
-
-            log(
-                "INFO",
-                f"replacements={replacements}"
-            )
-
-            if not replacements:
-                log(
-                    "SKIP",
-                    "no replacements"
-                )
-                return
-
-            role_id = db.get_bypass_role(message.guild.id)
-
-            if role_id:
-
-                role = message.guild.get_role(
-                    int(role_id)
-                )
-
-                log(
-                    "INFO",
-                    f"bypass_role={role_id}"
-                )
-
-                if role and message.author.top_role >= role:
-
-                    log(
-                        "SKIP",
-                        "user bypassed"
-                    )
-
-                    return
-
-            modified = apply_replacements(
-                message.content,
-                replacements
-            )
-
-            log(
-                "INFO",
-                f"original={repr(message.content)} "
-                f"modified={repr(modified)}"
-            )
-
-            if modified == message.content:
-
-                log(
-                    "SKIP",
-                    "no replacement triggered"
-                )
-
-                return
-
-            try:
-
-                webhook, thread = await get_or_create_webhook(
-                    message.channel
-                )
-
-                log(
-                    "INFO",
-                    f"webhook={webhook.id} thread={thread}"
-                )
-
-            except MissingWebhookPermissions:
-
-                log(
-                    "ERROR",
-                    "missing permissions"
-                )
-
-                return await self.permission_fail(
-                    message
-                )
-
-            name = getattr(
-                message.author,
-                "display_name",
-                message.author.name
-            )
-
-            avatar = (
-                message.author.display_avatar.url
-            )
-
-            try:
-
-                await message.delete()
-
-                log(
-                    "INFO",
-                    "deleted original"
-                )
-
-            except Exception as e:
-
-                log(
-                    "ERROR",
-                    f"delete failed {e}"
-                )
-
-                return
-
-            try:
-
-                await send_as_user(
-                    webhook,
-                    message,
-                    modified,
-                    name,
-                    avatar
-                )
-
-                log(
-                    "SUCCESS",
-                    f"sent={repr(modified)}"
-                )
-
-            except Exception as e:
-
-                clear_webhook_cache(
-                    message.channel.id
-                )
-
-                log(
-                    "ERROR",
-                    f"send failed {e}"
-                )
-
-        except Exception as e:
-
-            log(
-                "FATAL",
-                str(e)
-            )
+        try:
+            await send_as_user(webhook, message, modified, name, avatar)
+        except Exception:
+            clear_webhook_cache(message.channel.id)
 
 
 async def setup(bot):

@@ -217,9 +217,19 @@ def apply_replacements(
     )
 
 
-    return "".join(
+    final = "".join(
         result
     )
+
+    print(
+        "[replacer-debug]",
+        "content=",
+        repr(content),
+        "result=",
+        repr(final)
+    )
+
+    return final
 
 
 def has_mentions(

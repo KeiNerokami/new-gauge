@@ -83,79 +83,42 @@ async def resolve_channel(
     )
 
 
-async def get_or_create_webhook(
-    channel
-):
 
-    channel, thread_id = (
-        await resolve_channel(
-            channel
-        )
-    )
+async def get_or_create_webhook(channel):
 
-    await check_permissions(
-        channel
-    )
+    channel, thread_id = await resolve_channel(channel)
 
-    key = (
-        str(
-            channel.id
-        )
-    )
+    await check_permissions(channel)
 
-    if key in _cache:
+    key = str(channel.id)
 
-        return (
-            _cache[key],
-            thread_id
-        )
+    cached = _cache.get(key)
 
-    hooks = (
-        await channel.webhooks()
-    )
+    if cached:
+        return cached, thread_id
+
+    hooks = await channel.webhooks()
 
     webhook = next(
-
         (
-
             w
-
-            for w
-
-            in hooks
-
-            if (
-                w.user
-                and
-                w.user.bot
-            )
-
+            for w in hooks
+            if w.user
+            and w.user.id == channel.guild.me.id
+            and w.token
         ),
-
         None
-
     )
 
-    if (
-        webhook
-        is None
-    ):
+    if webhook is None:
 
-        webhook = (
-            await channel.create_webhook(
-                name=WEBHOOK_NAME
-            )
+        webhook = await channel.create_webhook(
+            name=WEBHOOK_NAME
         )
 
-    _cache[
-        key
-    ] = webhook
+    _cache[key] = webhook
 
-    return (
-        webhook,
-        thread_id
-    )
-
+    return webhook, thread_id
 
 def clear_webhook_cache(
     channel_id=None
